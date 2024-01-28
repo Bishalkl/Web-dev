@@ -1,0 +1,19 @@
+[+0.00s] DEBUG: simple-scan.vala:1720: Starting simple-scan 3.36.3, PID=21882
+[+0.00s] DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+[+0.02s] DEBUG: _g_io_module_get_default: Found default implementation dconf (DConfSettingsBackend) for ‘gsettings-backend’
+[+0.07s] DEBUG: app-window.vala:1906: Loading state from /home/bishal/.cache/simple-scan/state
+[+0.07s] DEBUG: app-window.vala:1885: Restoring window to 600x400 pixels
+[+0.20s] DEBUG: scanner.vala:1539: sane_init () -> SANE_STATUS_GOOD
+[+0.20s] DEBUG: scanner.vala:1545: SANE version 1.0.29
+[+0.20s] DEBUG: scanner.vala:1606: Requesting redetection of scan devices
+[+0.20s] DEBUG: scanner.vala:828: Processing request
+[+0.54s] DEBUG: app-window.vala:1981: Saving state to /home/bishal/.cache/simple-scan/state
+[+2.34s] DEBUG: app-window.vala:1981: Saving state to /home/bishal/.cache/simple-scan/state
+[+3.39s] DEBUG: app-window.vala:1981: Saving state to /home/bishal/.cache/simple-scan/state
+[+4.70s] DEBUG: autosave-manager.vala:201: Deleting autosave records
+[+4.70s] WARNING: autosave-manager.vala:214: Failed to delete autosaves: Error opening directory “/home/bishal/.cache/simple-scan/autosaves”: No such file or directory
+[+4.70s] DEBUG: scanner.vala:1702: Stopping scan thread
+[+8.22s] DEBUG: scanner.vala:341: sane_get_devices () -> SANE_STATUS_GOOD
+[+8.22s] DEBUG: scanner.vala:828: Processing request
+[+8.23s] DEBUG: scanner.vala:1713: sane_exit ()
+[+8.23s] CRITICAL: app_window_set_scan_devices: assertion 'self != NULL' failed

@@ -1,0 +1,930 @@
+
+var eng = {},
+	current = {},
+	fadeDur = 200,
+	titlePrefix = "Zorin OS Start Page / Search ",
+	
+	idxWidth = 700,
+	idxLogoFull  = [225,80],
+	idxLogoSmall = [157,56],
+	idxMargin = 24,
+	idxFadedOpacity = 0.3,
+	
+	idxHeight = 0;
+
+
+$(function()
+{
+	// Create Engine Index
+	
+	indexCreate();
+	
+	// Behavior
+	
+	$("#i").keyup(function(ev) 		{ fetchSuggestions(ev.which); });
+	$(document).click(function(ev) 	{ closeSugBox(ev.srcElement) });
+
+	$("#toggleInfo").click(function(){
+		$("#infoBox").toggle(400);
+	});
+	
+	// Set up first engine
+
+	build(firstProp(eng), false);
+});
+
+function doSearch()
+{
+	var url = eng[current.engine].places[current.place][0];
+		url = url.replace("%query%", encodeURIComponent($("#i").val()));
+	if (typeof eng[current.engine].languages == "object") 
+		url = url.replace("%lang%", eng[current.engine].languages[current.language]);
+	
+	window.location.href = url;
+	return false;
+}
+
+
+/*	ENGINE INDEX
+	-----------------------------------------------------  */
+	
+function indexCreate()
+{
+	var row = 0,
+		i = 0, // Reset every row
+		j = 0, // Total
+		offset = 0,
+		cols = Math.floor(idxWidth/idxLogoSmall[0]);
+	
+	for (e in eng) 
+	{
+		// If the offset hasn't been set yet
+		// And the number of engines left to draw is <= items in the final row
+		if (
+			offset == 0 && 
+			(numKeys(eng) - j) <= (numKeys(eng) % cols)
+		) {
+			offset = cols - numKeys(eng) % cols;
+			offset = offset * (idxLogoSmall[0]+idxMargin) / 2;
+		}
+		
+		$("#engines").prepend("<a id='"+e+"_logo' ref='"+e+"'><img src='engines/"+eng[e].logo+"'></a>");
+		
+		if (i == cols) { i=0; row++; };
+		eng[e].idxPos = [
+			(idxLogoSmall[0]+idxMargin)*i - idxWidth/2 + offset,
+			(idxLogoSmall[1]+idxMargin)*row
+		];
+		i++; j++;
+	}
+	idxHeight = (row+1)*(idxLogoSmall[1]+idxMargin)-idxMargin;
+	idxHeight = Math.max(idxHeight, idxLogoFull[1]);
+	
+	$("#engines a").click(function(){ build($(this).attr("ref"), true); })
+	
+	$("#engines a").css({
+		"left": "50%",
+		"bottom": "0",
+		"marginLeft": -idxLogoFull[0]/2+"px"
+	});
+	
+	$("#engines").mouseenter(function(){ indexOpen(); });
+	$("#engines").mouseleave(function(){ indexClose(); });
+}
+
+var idxState = false,
+	idxClear = undefined;
+	
+function indexOpen()
+{
+	idxState = true;
+	clearTimeout(idxClear);
+	
+	$("#engines").css({
+		"height": idxHeight
+	});
+	
+	for (e in eng) 
+	{
+		var op = $("#"+e+"_logo").hasClass("active");
+		$("#"+e+"_logo").stop().queue("fx",[]).animate({
+			"marginLeft": eng[e].idxPos[0]+"px",
+			"marginBottom": eng[e].idxPos[1]+"px",
+			"opacity": (op) ? 1 : idxFadedOpacity,
+			"width": idxLogoSmall[0],
+			"height": idxLogoSmall[1],
+		}, fadeDur);
+	}	
+}
+
+function indexClose()
+{
+	idxState = false;
+	
+	$("#engines").css({
+		"height": idxLogoFull[1]
+	});
+	
+	$("#engines a").each(function()
+	{
+		var op = $(this).hasClass("active");
+		$(this).stop().queue("fx",[]).animate({
+			"marginLeft": -idxLogoFull[0]/2+"px",
+			"marginBottom": 0,
+			"opacity": (op) ? 1 : 0,
+			"width": idxLogoFull[0],
+			"height": idxLogoFull[1]
+		}, fadeDur);
+	});
+	
+	// Because jQuery doesn't like me
+	idxClear = setTimeout(function(){ $("#engines a:not(.active)").css("opacity",0) }, fadeDur);
+}
+
+
+
+/*	GENERATING THE SEARCH ENGINE PAGE
+	-----------------------------------------------------  */
+
+function build(e, animate) 
+{
+	var methodFade = (animate) ? fadeDur : 0;
+	
+	current.engine = e;		// Just the engine's ID for reference
+	e = eng[e];				// Engine object
+	
+	$("#title").html(titlePrefix+e.pageTitle);
+	
+	$("#method").stop().queue("fx",[]).animate({"opacity": 0}, methodFade);
+	
+	op = (idxState) ? idxFadedOpacity : 0;
+	$("#engines a").stop().queue("fx",[]).removeClass("active");
+	$("#"+current.engine+"_logo").addClass("active").animate({"opacity": 1}, fadeDur);
+	$("#engines a:not(.active)").animate({"opacity": op}, fadeDur);
+	
+	if (typeof e.languages == "object") setLang(firstProp(e.languages));
+	else $("#lang").fadeOut(fadeDur);
+	
+	closeSugBox(false);
+	
+	$("#i").attr("autosave", "com.zorinos.start."+current.engine);
+	$("#input input").focus();
+	
+	setTimeout(function()
+	{
+		$("#method").html("");
+		for (place in e.places) $("#method").append("<a onclick='setPlace(this)'>"+place+"</a>");
+		
+		setPlace("#method a:first");
+		
+		$("#method").animate({"opacity": 1}, fadeDur);
+	}, methodFade);
+}
+
+function setPlace(place) 
+{
+	current.place = $(place).html();
+	
+	$("#method a").removeClass("active");
+	$(place).addClass("active");
+	$("#input input").focus();
+	
+	if (eng[current.engine].places[current.place][1] !== false)
+	{
+		fetchSuggestions();
+		$("#i").attr("autocomplete", "off");
+	} 
+	else 
+	{
+		closeSugBox(false);
+		$("#i").attr("autocomplete", "off");
+	}
+}
+
+function setLang(language) 
+{
+	current.language = language;
+	
+	$("#lang").fadeIn(fadeDur).html(language);
+	$("#input input").focus();
+}
+
+
+/*	KEYBOARD SHORTCUTS
+	-----------------------------------------------------  */
+
+var isCtrl = false;
+var isCmd = false;
+
+$(document).keyup(function(e) 
+{
+	if (e.which == 17) isCtrl=false;
+	if (e.which == 91) isCmd=false;	
+}
+).keydown(function(e) 
+{
+	if (e.which == 17) isCtrl=true;
+	if (e.which == 91) isCmd=true;
+	
+	if (e.which == 49 && isCtrl == true) 	{ /* Key "1" */ 	nextEngine(); return false; }
+	if (e.which == 50 && isCtrl == true) 	{ /* Key "2" */ 	nextPlace(); return false; }
+	if (e.which == 51 && isCtrl == true) 	{ /* Key "3" */ 	nextLanguage(); return false; }
+		
+	if (e.which == 38) 						{ /* Arrow Up */ 	prevSugResult(); }	
+	if (e.which == 40) 						{ /* Arrow Down */ 	nextSugResult(); }	
+	if (e.which == 27) 						{ /* ESC */ 		closeSugBox(false); }	
+	if (e.which == 13) 						{ /* Enter */ 		applySugResult(); }
+});
+
+function nextEngine() 
+{
+	build(findNext(eng, current.engine), true);
+}
+
+function nextPlace() 
+{
+	var nextPlace = findNext(eng[current.engine].places, current.place);
+	$("#method a").each(function()
+	{
+		if ($(this).html() == nextPlace) setPlace($(this));
+	})
+}
+
+function nextLanguage() 
+{
+	setLang(findNext(eng[current.engine].languages, current.language));
+}
+
+
+/*	SUGGESTIONS
+	-----------------------------------------------------  */
+
+function fetchSuggestions(key)Â 
+{
+	if (key == undefined || (!inArray(key, new Array(13,16,20,27,37,38,39,40)) && !isCtrl && !isCmd)) 
+	{
+		if ( $("#i").val() != "" && eng[current.engine].places[current.place][1] !== false ) 
+		{
+			current.suggestionsTimestamp = new Date().getTime();
+			
+			var url = eng[current.engine].places[current.place][1];
+				url = url.replace("%query%", encodeURIComponent($("#i").val()));
+				url = url.replace("%time%", current.suggestionsTimestamp);
+			if (typeof eng[current.engine].languages == "object") 
+				url = url.replace("%lang%", eng[current.engine].languages[current.language]);
+	
+			$.getJSON(url, function(data) { buildSuggestions(data); })
+		} 
+		else closeSugBox(false);
+	}
+}
+
+function buildSuggestions(list) 
+{
+	if (list.empty) 
+	{
+		if(console)console.log("(1) Suggestions for '"+list.query+"' empty.");
+		closeSugBox(false);
+	}
+	else if (
+		list.engine == current.engine && 
+		list.timestamp == current.suggestionsTimestamp &&
+		list.query == $("#i").val()
+	) {
+		if(console)console.log("(2) Suggestions for '"+list.query+"' accepted.");
+		
+		$("#sugs").html("");
+		for (sug in list.results)
+		{
+			sug = list.results[sug];
+			$("#sugs").append("<li><a href='"+sug[1]+"'>"+sug[0]+"</a></li>");
+		}
+		
+		$("#sugs").css({"display": "block"});	
+		$("#sugs li").mousemove(function() 
+		{
+			$("#sugs .active").removeClass("active");
+			$(this).addClass("active");
+		}
+		).click(function() 
+		{
+			applySugResult();
+		});
+	} 
+	else 
+	{
+		if(console)console.log("(3) Suggestions for '"+list.query+"' discarded.");
+	}
+}
+
+function prevSugResult() 
+{
+	if ($("#sugs").css("display") == "none") return;
+	if ($("#sugs .active").length == 0) {
+		$("#sugs li:last-child").addClass("active");
+	} else {
+		$("#sugs .active").removeClass("active").prev().addClass("active");
+	}
+	backupQuery();
+}
+
+function nextSugResult() 
+{
+	if ($("#sugs").css("display") == "none") return;
+	if ($("#sugs .active").length == 0) {
+		$("#sugs li:first-child").addClass("active");
+	} else {
+		$("#sugs .active").removeClass("active").next().addClass("active");
+	}
+	backupQuery();
+}
+
+var originalQuery = false;
+
+function backupQuery() 
+{
+	if ($("#sugs .active").length > 0) {
+		if (!originalQuery) originalQuery = $("#i").val();
+		$("#i").val($("#sugs .active a").html());
+	} else {
+		$("#i").val(originalQuery);
+		originalQuery = false;
+	}
+}
+
+function closeSugBox(src) 
+{
+	if (src == false || src == undefined || (src.id != "i" && src.id != "sugs"))
+		$("#sugs").html("").css({"display": "none"});
+}
+
+function applySugResult() 
+{
+	if ($("#sugs .active").length > 0) {
+		$("#i").val($("#sugs .active a").html());
+		closeSugBox(false);
+	}
+}
+
+
+
+
+
+
+
+        tm  xtm‹’   20231116134553-8lWm  Í¹Œ6	>   https://assets.zorincdn.com/start.zorin.com/scripts/scripts.js       İ!  
+var eng = {},
+	current = {},
+	fadeDur = 200,
+	titlePrefix = "Zorin OS Start Page / Search ",
+	
+	idxWidth = 700,
+	idxLogoFull  = [225,80],
+	idxLogoSmall = [157,56],
+	idxMargin = 24,
+	idxFadedOpacity = 0.3,
+	
+	idxHeight = 0;
+
+
+$(function()
+{
+	// Create Engine Index
+	
+	indexCreate();
+	
+	// Behavior
+	
+	$("#i").keyup(function(ev) 		{ fetchSuggestions(ev.which); });
+	$(document).click(function(ev) 	{ closeSugBox(ev.srcElement) });
+
+	$("#toggleInfo").click(function(){
+		$("#infoBox").toggle(400);
+	});
+	
+	// Set up first engine
+
+	build(firstProp(eng), false);
+});
+
+function doSearch()
+{
+	var url = eng[current.engine].places[current.place][0];
+		url = url.replace("%query%", encodeURIComponent($("#i").val()));
+	if (typeof eng[current.engine].languages == "object") 
+		url = url.replace("%lang%", eng[current.engine].languages[current.language]);
+	
+	window.location.href = url;
+	return false;
+}
+
+
+/*	ENGINE INDEX
+	-----------------------------------------------------  */
+	
+function indexCreate()
+{
+	var row = 0,
+		i = 0, // Reset every row
+		j = 0, // Total
+		offset = 0,
+		cols = Math.floor(idxWidth/idxLogoSmall[0]);
+	
+	for (e in eng) 
+	{
+		// If the offset hasn't been set yet
+		// And the number of engines left to draw is <= items in the final row
+		if (
+			offset == 0 && 
+			(numKeys(eng) - j) <= (numKeys(eng) % cols)
+		) {
+			offset = cols - numKeys(eng) % cols;
+			offset = offset * (idxLogoSmall[0]+idxMargin) / 2;
+		}
+		
+		$("#engines").prepend("<a id='"+e+"_logo' ref='"+e+"'><img src='engines/"+eng[e].logo+"'></a>");
+		
+		if (i == cols) { i=0; row++; };
+		eng[e].idxPos = [
+			(idxLogoSmall[0]+idxMargin)*i - idxWidth/2 + offset,
+			(idxLogoSmall[1]+idxMargin)*row
+		];
+		i++; j++;
+	}
+	idxHeight = (row+1)*(idxLogoSmall[1]+idxMargin)-idxMargin;
+	idxHeight = Math.max(idxHeight, idxLogoFull[1]);
+	
+	$("#engines a").click(function(){ build($(this).attr("ref"), true); })
+	
+	$("#engines a").css({
+		"left": "50%",
+		"bottom": "0",
+		"marginLeft": -idxLogoFull[0]/2+"px"
+	});
+	
+	$("#engines").mouseenter(function(){ indexOpen(); });
+	$("#engines").mouseleave(function(){ indexClose(); });
+}
+
+var idxState = false,
+	idxClear = undefined;
+	
+function indexOpen()
+{
+	idxState = true;
+	clearTimeout(idxClear);
+	
+	$("#engines").css({
+		"height": idxHeight
+	});
+	
+	for (e in eng) 
+	{
+		var op = $("#"+e+"_logo").hasClass("active");
+		$("#"+e+"_logo").stop().queue("fx",[]).animate({
+			"marginLeft": eng[e].idxPos[0]+"px",
+			"marginBottom": eng[e].idxPos[1]+"px",
+			"opacity": (op) ? 1 : idxFadedOpacity,
+			"width": idxLogoSmall[0],
+			"height": idxLogoSmall[1],
+		}, fadeDur);
+	}	
+}
+
+function indexClose()
+{
+	idxState = false;
+	
+	$("#engines").css({
+		"height": idxLogoFull[1]
+	});
+	
+	$("#engines a").each(function()
+	{
+		var op = $(this).hasClass("active");
+		$(this).stop().queue("fx",[]).animate({
+			"marginLeft": -idxLogoFull[0]/2+"px",
+			"marginBottom": 0,
+			"opacity": (op) ? 1 : 0,
+			"width": idxLogoFull[0],
+			"height": idxLogoFull[1]
+		}, fadeDur);
+	});
+	
+	// Because jQuery doesn't like me
+	idxClear = setTimeout(function(){ $("#engines a:not(.active)").css("opacity",0) }, fadeDur);
+}
+
+
+
+/*	GENERATING THE SEARCH ENGINE PAGE
+	-----------------------------------------------------  */
+
+function build(e, animate) 
+{
+	var methodFade = (animate) ? fadeDur : 0;
+	
+	current.engine = e;		// Just the engine's ID for reference
+	e = eng[e];				// Engine object
+	
+	$("#title").html(titlePrefix+e.pageTitle);
+	
+	$("#method").stop().queue("fx",[]).animate({"opacity": 0}, methodFade);
+	
+	op = (idxState) ? idxFadedOpacity : 0;
+	$("#engines a").stop().queue("fx",[]).removeClass("active");
+	$("#"+current.engine+"_logo").addClass("active").animate({"opacity": 1}, fadeDur);
+	$("#engines a:not(.active)").animate({"opacity": op}, fadeDur);
+	
+	if (typeof e.languages == "object") setLang(firstProp(e.languages));
+	else $("#lang").fadeOut(fadeDur);
+	
+	closeSugBox(false);
+	
+	$("#i").attr("autosave", "com.zorinos.start."+current.engine);
+	$("#input input").focus();
+	
+	setTimeout(function()
+	{
+		$("#method").html("");
+		for (place in e.places) $("#method").append("<a onclick='setPlace(this)'>"+place+"</a>");
+		
+		setPlace("#method a:first");
+		
+		$("#method").animate({"opacity": 1}, fadeDur);
+	}, methodFade);
+}
+
+function setPlace(place) 
+{
+	current.place = $(place).html();
+	
+	$("#method a").removeClass("active");
+	$(place).addClass("active");
+	$("#input input").focus();
+	
+	if (eng[current.engine].places[current.place][1] !== false)
+	{
+		fetchSuggestions();
+		$("#i").attr("autocomplete", "off");
+	} 
+	else 
+	{
+		closeSugBox(false);
+		$("#i").attr("autocomplete", "off");
+	}
+}
+
+function setLang(language) 
+{
+	current.language = language;
+	
+	$("#lang").fadeIn(fadeDur).html(language);
+	$("#input input").focus();
+}
+
+
+/*	KEYBOARD SHORTCUTS
+	-----------------------------------------------------  */
+
+var isCtrl = false;
+var isCmd = false;
+
+$(document).keyup(function(e) 
+{
+	if (e.which == 17) isCtrl=false;
+	if (e.which == 91) isCmd=false;	
+}
+).keydown(function(e) 
+{
+	if (e.which == 17) isCtrl=true;
+	if (e.which == 91) isCmd=true;
+	
+	if (e.which == 49 && isCtrl == true) 	{ /* Key "1" */ 	nextEngine(); return false; }
+	if (e.which == 50 && isCtrl == true) 	{ /* Key "2" */ 	nextPlace(); return false; }
+	if (e.which == 51 && isCtrl == true) 	{ /* Key "3" */ 	nextLanguage(); return false; }
+		
+	if (e.which == 38) 						{ /* Arrow Up */ 	prevSugResult(); }	
+	if (e.which == 40) 						{ /* Arrow Down */ 	nextSugResult(); }	
+	if (e.which == 27) 						{ /* ESC */ 		closeSugBox(false); }	
+	if (e.which == 13) 						{ /* Enter */ 		applySugResult(); }
+});
+
+function nextEngine() 
+{
+	build(findNext(eng, current.engine), true);
+}
+
+function nextPlace() 
+{
+	var nextPlace = findNext(eng[current.engine].places, current.place);
+	$("#method a").each(function()
+	{
+		if ($(this).html() == nextPlace) setPlace($(this));
+	})
+}
+
+function nextLanguage() 
+{
+	setLang(findNext(eng[current.engine].languages, current.language));
+}
+
+
+/*	SUGGESTIONS
+	-----------------------------------------------------  */
+
+function fetchSuggestions(key)Â 
+{
+	if (key == undefined || (!inArray(key, new Array(13,16,20,27,37,38,39,40)) && !isCtrl && !isCmd)) 
+	{
+		if ( $("#i").val() != "" && eng[current.engine].places[current.place][1] !== false ) 
+		{
+			current.suggestionsTimestamp = new Date().getTime();
+			
+			var url = eng[current.engine].places[current.place][1];
+				url = url.replace("%query%", encodeURIComponent($("#i").val()));
+				url = url.replace("%time%", current.suggestionsTimestamp);
+			if (typeof eng[current.engine].languages == "object") 
+				url = url.replace("%lang%", eng[current.engine].languages[current.language]);
+	
+			$.getJSON(url, function(data) { buildSuggestions(data); })
+		} 
+		else closeSugBox(false);
+	}
+}
+
+function buildSuggestions(list) 
+{
+	if (list.empty) 
+	{
+		if(console)console.log("(1) Suggestions for '"+list.query+"' empty.");
+		closeSugBox(false);
+	}
+	else if (
+		list.engine == current.engine && 
+		list.timestamp == current.suggestionsTimestamp &&
+		list.query == $("#i").val()
+	) {
+		if(console)console.log("(2) Suggestions for '"+list.query+"' accepted.");
+		
+		$("#sugs").html("");
+		for (sug in list.results)
+		{
+			sug = list.results[sug];
+			$("#sugs").append("<li><a href='"+sug[1]+"'>"+sug[0]+"</a></li>");
+		}
+		
+		$("#sugs").css({"display": "block"});	
+		$("#sugs li").mousemove(function() 
+		{
+			$("#sugs .active").removeClass("active");
+			$(this).addClass("active");
+		}
+		).click(function() 
+		{
+			applySugResult();
+		});
+	} 
+	else 
+	{
+		if(console)console.log("(3) Suggestions for '"+list.query+"' discarded.");
+	}
+}
+
+function prevSugResult() 
+{
+	if ($("#sugs").css("display") == "none") return;
+	if ($("#sugs .active").length == 0) {
+		$("#sugs li:last-child").addClass("active");
+	} else {
+		$("#sugs .active").removeClass("active").prev().addClass("active");
+	}
+	backupQuery();
+}
+
+function nextSugResult() 
+{
+	if ($("#sugs").css("display") == "none") return;
+	if ($("#sugs .active").length == 0) {
+		$("#sugs li:first-child").addClass("active");
+	} else {
+		$("#sugs .active").removeClass("active").next().addClass("active");
+	}
+	backupQuery();
+}
+
+var originalQuery = false;
+
+function backupQuery() 
+{
+	if ($("#sugs .active").length > 0) {
+		if (!originalQuery) originalQuery = $("#i").val();
+		$("#i").val($("#sugs .active a").html());
+	} else {
+		$("#i").val(originalQuery);
+		originalQuery = false;
+	}
+}
+
+function closeSugBox(src) 
+{
+	if (src == false || src == undefined || (src.id != "i" && src.id != "sugs"))
+		$("#sugs").html("").css({"display": "none"});
+}
+
+function applySugResult() 
+{
+	if ($("#sugs .active").length > 0) {
+		$("#i").val($("#sugs .active a").html());
+		closeSugBox(false);
+	}
+}
+
+
+
+
+
+
+
+Ó˜ÀÙš   š         r¨b¼      eng    †ƒëı      current    .?²      fadeDur    cğµİ      titlePrefix    ª©ş      Zorin OS Start Page / Search       û>r9      idxWidth   ¯kÎ      idxLogoFull    i°•²      idxLogoSmall   C4Ôò	      idxMargin	      ¾£S2      idxFadedOpacity
+    :Â¡­	      idxHeight      İÏV      indexCreate    õÊ€T      #i     KH`      keyup      Æï¸      fetchSuggestions   Å¸0      which      ¸O€      document   ŸªâX      click      L¡      closeSugBox    |5Î
+      srcElement     Å“¸9      #toggleInfo    ¶ÿ|      #infoBox   Ogµ      toggle     ‘:Êâ      build      ğµ£E	      firstProp      è'x‹      doSearch   ©ÏK      engine     ¨%kª      places     4ô†Ù      place      ÔĞ°5      %query%    &Ú›      val    ñç}	      languages       ãõ61      %lang%!     ø2‡‰      window"     0+QA      location#   »©`X      href$   ì%NÂ      row%    %ëù~      cols&   `-„—      floor'       ÚùŸ      numKeys(    !a.      #engines)   õ£$      prepend*    +?ç      <a id='+    ¿#      _logo' ref=',   ¡L      '><img src='engines/-   fİ      logo.   ĞaıK      '></a>/     3¤˜:      idxPos0     Kk.      max1    ÿ‘
+      #engines a2     A¢½      attr3   VF'      ref4    >Ÿ      css5    õ]‡      left6   ZÙ¯ÿ      50%7    @Èÿ~      bottom8     Gç$W
+      marginLeft9     ™FÊ
+      mouseenter:     Ğ—%	      indexOpen;      fN¾
+      mouseleave<     ğµ‹
+      indexClose=     sŸÈ      idxState>   2¯,;      idxClear?   Qï8u      clearTimeout@   ·ÉÅ      heightA     "!      _logoB      7„ƒz      hasClassC   Œ¨Px      activeD     m      stopE   pÁ#      queueF      Öq1¼      animateG    FÙEé      marginBottomH   ßueÉ      opacityI    ëÄJû      widthJ      3AtÙ
+      setTimeoutK     Ó1¿ü      #engines a:not(.active)L     
+      methodFadeM     Ènô      #titleN     ÔãX      htmlO   ™hÛ»	      pageTitleP      !…‡      #methodQ    ö+      removeClassR    BŒ|      addClassS   øX2‰      setLangT    ÄãÜ      #langU      ĞcH:      fadeOutV    Ëµõq      autosaveW   ø|ş      com.zorinos.start.X     äèaŸ      #input inputY   KÌí      focusZ      ÜB-      append[     PŞ¼¨      <a onclick='setPlace(this)'>\   î†Ä      </a>]   2¨û      setPlace^   ¹•       #method a:first_    <ã?	      #method a`      k÷Ğ      autocompletea   úø…ß      offb    å„U"      fadeInc     qókã      isCtrld     8'ƒ¯      isCmde      ºÓ      keydownf    Ìú 
+      nextEngineg     •+"	      nextPlaceh      Z—N      nextLanguagei   Î;í½      prevSugResultj      E¶i      nextSugResultk      é}å      applySugResultl     ¶F      findNextm   Bü¿;      keyn    °­ØG      inArrayo    ¢“ 7      suggestionsTimestampp   uô.      getTimeq    JMÇ      %time%r     P¼vÔ      getJSONs    6—(      datat   ‘	Â      buildSuggestionsu   ã‚ÈÅ      listv   ¸ªı      emptyw      şQ1      consolex    =Xû      logy    ¤˜«      (1) Suggestions for 'z      XN_ÿ      query{      ŞS«      ' empty.|   `;	      (2) Suggestions for '}      P
+•      ' accepted.~    Äû,ñ      #sugs      ¿=      sug€    ÷İ"      <li><a href='      µ“‘      '>‚     #Ñ\³	      </a></li>ƒ      e}Ÿ      display„    Ÿàû      block…      Œˆ§      #sugs li†   ¼cyô	      mousemove‡      Ğ\0b      #sugs .activeˆ      Â ‘­      (3) Suggestions for '‰      ³0£      ' discarded.Š   ,½      none‹   Úvİù      #sugs li:last-childŒ    >Æ§"      prev    µ½      backupQuery    ÓßŸ      #sugs li:first-child   /ÛÇ      originalQuery      EaH„      #sugs .active a‘    œ·È›      src’    1CÊ      sugs“   uÑ¨      indexCreate/<”      8xç©      indexClose/<•   N|Cl      indexClose/idxClear<–   ^õê      build/<—    O       nextPlace/<˜    v€Ù      fetchSuggestions/<™     ³`‹ä      buildSuggestions/<     "   Ó  "   "              ï%,‰                                                                                                    	                  
+                                                                           
+                                                                                                                                                                                                                                                                                                       !                                                                                                               ³OŒc              ]  j  	    
+    g  =      <  :    i    >     f      k          h  S  c  d  t                                  $  i  j  …  %                                                                                                                                e `F  L                                              (                                 g  P                                             m                 s               u                                                                                                ‘                                               Ÿ              Ÿ                              e               e  ¯Â0°Iô$KE®úš         5  7  8        @          8  G  H  I  @          @          8  G  H  I  @          H          H          H          H          ƒ          ƒ                             á    €øÿ    P    €øÿ                €øÿ    8    €øÿ‡&Õª!«!"   ¨    *µ,¨                  )        Õ   ³   8   Å   Ú³   8   Å   Ú³   È Å   Ú³      Å   Ú³   ¼Å   Ú³   9   Å   Ú³   9   Å   Ú³   Å   Ú³   
+333333Ó?Å   Ú³    Å    Ú¶!    l"   v Ú³#   Å#   Ú³$    Å$   Ú³%   Å%   Ú³&   Å&   Ú¶!    ¶'   r ÜI(   ßl)   r ÜI*   ßl+   v Ú³,   Å,   Ú£%
+e ` `.`@`.` ` `-`”@`7`ÿÿÿÿPD^e,`G€  ×e'e`ÿÿÿÿP
+ÿÿÿúPJ€  ß
+ÿÿÿøPD€ Ue7€ vP€€ì   ®·¦ì   ~                          ¶    v  Ú¶       r ÜI   ßl   v Ú¶    ¶   r ÜI   ßl   v Ú¶    	   r ÜI   ßl
+   v Ú¶    ¶    ¶   r v Ú£@`J`P
+ÿÿÿúP$`ÿÿÿÿP
+ÿÿÿúPD`P
+ÿÿÿúPD`
+ÿÿÿöPÿÿÿÿPP€D   =šbWD                            ¶    ·  I   v Ú£ 	`ÿÿÿÿPP€€D   ü·¯D                            ¶    ·  I   v Ú£ `ÿÿÿÿPP€€L   Â&*L                             ¶       r ÜI   ßv Ú£ `PP$P€€4  %4  Ú          	       &        ¶   ¶   I   JI   ¶   I   JJÈ   Ú¹   ÜI   ß   ¶    ¶	    
+   r ÜI   ßr  r r È   Ú¶   ¶   I   JI      ˜B   •   ¹   ÜI   ß   ¶   ¶   I   JI   ¶   I   Jr È   Ú•#   ¶   I   ¹   K   Ú £ `§ ` [
+PÿÿÿåPÿÿÿíP(`¦ `   ÿÿÿîPM`” `Q€à  ú ÛjĞ  ·                y       È   ÚÈ  ÚÈ  ÚÈ  Ú¶   ÜI   ß¶   ¶   J*r È  Ú¶   ]–	   ^_™|  •
+   ³   ßÅ   ¹  š2   •   Ú¶    ¶   r ¹  &¶    ¶   r ¹  +•   ˜A   •   ¹  ¶    ¶   r ¹  +&È  Ú¹  ¶   J¶   %)*È  Ú•#   ¶	    
+   r ÜI   ß   ¶   %   %¶   %   %¶   ¶   JI   %   %v Ú¹  ¹  ˜   •5   È  Ú¹   /'È   Ú•7   ¶   ¶   Jg   ¶   J¶   %¹  )¶   *&¹  %h    ¶   J¶   %¹   )h   K   Ú¹  /'È  Ú¹  /'È  ÚÚ—şÿÿ•N   `³   ¹   %¶   J¶   %)¶   &Å   Ú³   ¶   ÜI   ß¶   ¶   Jr Å   Ú¶	       r ÜI   ßl   v Ú¶	       r ÜI   ß8      ;      ;   ¶   J*   %;   v Ú¶	    
+   r ÜI    ßl!   v Ú¶	    
+   r ÜI"   ßl#   v Ú£ `&`&`&`&	`	ÿÿÿñPH`£0 `‘ ÿÿÿøPÿÿÿøP• `ÿÿÿøP+`”@`P
+
+— ÿÿÿÄPD``` ` 	*@``KL`,`‘ ÿÿÿñPI `P
+ÿÿÿúPD"`P
+%** –@"PD(`P
+ÿÿÿõP$`P
+ÿÿÿõPP€à        ?   „  h   h   .                        ÙÈ   Ú¶    ¶    ¹   r ÜI   ß   r v Ú£`ÿÿÿşPPÿÿÿ÷PP4   š7á 4                             ¶    v  Ú£ `
+P€€4   iç‘4                             ¶    v  Ú£ `
+P€€  Ô7IUô  h                =       ³   Å   Ú¶    ¶   v Ú¶       r ÜI   ß8   ¶   ;	   v Ú¶
+   ]–   ^_™  •   ³   ßÅ   ¶       ¶   %   %r ÜI   ß   r È   Ú¶       ¶   %   %r ÜI   ßr  ÜI   ß   g    r ÜI   ß8   ¶
+   ¶   JI   J   %;   ¶
+   ¶   JI   J   %;   ¹   ˜   •3   —   •3   ¶   •4   ;   ¶   J;   ¶   J;	   ¶   v ÚÚ—íşÿÿ•=   `£ `,`ÿÿÿÿPD`P
+%JPD	`£ `ÿÿÿûPP(`ÿÿÿûP
+PÿÿÿõP
+%  ¨ ,,E)PD	<P        I     È   áÊbÈ   s                          ³   Å   Ú¶       r ÜI   ß8   ¶   J;   v Ú¶       r ÜI	   ßl
+   v Ú³   ¶    l   ¶   r Å   Ú£ `L`P
+%LPD`P
+ÿÿÿûPD`=ÿÿÿ¸PP€€   ˜Ä½”   À                        ÙÈ  Ú¶    ¹  r ÜI   ß   r È   Ú¶    ¹  r ÜI   ßr  ÜI   ß   g    r ÜI   ß8   ¶	   J*
+   %;   ;   ¹   ˜   •   —   •   •   ;   ¶	   J;   ¶	   J;   ¶   v Ú£ `ÿÿÿÿPP(`ÿÿÿÿP
+PÿÿÿõP
+% – &¤ ,,E PD
+PP   ëµ•P                              ¶       r ÜI   ß   v Ú£ `P PP€€l  mO„vl  l  	             X       ¸  É   Ú· ˜   •   ¶   —   •   •   È   Ú¶   ¼   K   Ú¶   ¼   JÉ   Ú¶       r ÜI   ß¶   ¼   I	   %v Ú¶    
+   r ÜI   ßr  ÜI   ß   g    r ÜI   ß8   ;   ¹   v Ú³   ¶   ˜   •   ¶   —   •   •   Å   Ú¶       r ÜI   ßr  ÜI   ß   g    r ÜI   ß   v Ú¶       ¶   I   %   %r ÜI   ß   r ÜI   ß8   ;   ¶   v Ú¶       r ÜI   ß8   ¶   ;   ¶   v Ú¼   I      ˜,   •?   ¶    ¶     ¼   I   r v Ú—(   •D   ¶    !   r ÜI"   ß¶   v Ú•I   ¶#    v Ú¶    $   r ÜI%   ß&   '   ¶   I   %v Ú¶    (   r ÜI)   ßv  Ú¶*    l+   ¹   v Ú£ `§@` `‘@`P
+ÿÿÿïPD	`P
+PÿÿÿõP
+ÿÿÿèPD`¯ `P
+PÿÿÿõPP$`‘ ÿÿÿûPP
+ÿÿÿèP$`P
+$
+ÿÿÿçPD`›  `
+
+ÿÿÿöPÿÿÿÿP.`P
+ÿÿÿøPI`PD`PÿÿÿÚP$`P
+PD`E DP4!P€€€,  ÑWc{  µ                         ¶       r ÜI   ß   v Ú¼   I   ]–   ^_™E   •   ³   ßÅ   ¶       r ÜI   ß   ¶   %	   %v ÚÚ—¸ÿÿÿ•   `¶
+       v Ú¶       r ÜI   ß8   ;   ¶   v Ú£ `PP$`¨ 
+`P
+ÿÿÿÚPÿÿÿÛL`PD`P
+ÿÿÿèP$P€€,        )   M   ˆ  ¦  «ˆ                   )       ¶   ¶    ·  r ÜI   ßr  K   Ú¶       r ÜI   ß   v Ú¶    ·  r ÜI   ß   v Ú¶    	   r ÜI
+   ßv  Ú¶   ¶   I   JI   ¶   I   JJ˜<   •   ¶    v  Ú¶       r ÜI   ß      v Ú—8   •#   ¶    v Ú¶       r ÜI   ß      v Ú•)   £ `ÿÿÿşP
+	PI`PP$`ÿÿÿÿPP$`P
+PD`® `*`P” P> `P$`P” P9P€€œ   TAÊœ   S                         ¶   ·  K   Ú¶       r ÜI   ß¶   r ÜI   ß·  v Ú¶       r ÜI	   ßv  Ú£ `N`P
+ÿÿÿùP
+ÿÿÿûP$`P
+PP€€„   ®:ï„   M                  
+       ·  I   ˜   •   ³   Å   Ú•   ·  I   [˜   •   ³   Å   Ú•
+   £ `• `‘ `• `‘P€€€  »C¹†  •                 6       ·  I   ˜   •   ³   Å   Ú•   ·  I   [˜   •   ³   Å   Ú•
+   ·  I   1š   •   Ú¶   •   ˜   •   ¶    v  Ú •   ·  I   2š   •   Ú¶   •   ˜   •   ¶    v  Ú •   ·  I   3š   •   Ú¶   •   ˜   •    ¶    v  Ú •"   ·  I   &˜   •%   ¶    v  Ú•'   ·  I   (˜   •*   ¶    v  Ú•,   ·  I   ˜   •/   ¶	    v Ú•1   ·  I   ˜   •4   ¶
+    v  Ú•6   £ `• `‘ `• `‘@`¬ 3`
+`1F`¬ 3`
+`1F`¬ 3`
+`1F	`• '`/`• )`/`• #`P)`• %`P`   gı}`   $                          ¶    ¶    ¶   ¶   I   r v Ú£ `	
+ÿÿÿòPÿÿÿÿPP€€€   AV3   M                          ¶    ¶   ¶   I   JI   ¶   I   r É   Ú¶       r ÜI	   ßl
+   v Ú£ `	• 
+ÿÿÿãP)`P
+ÿÿÿûP4P€€”   ·V”   J                
+        ÙÈ   Ú¶    ¹   r ÜI   ßr  ¼   ˜!   •   ¶    ¶    ¹   r v Ú•
+   £ `ÿÿÿÿP
+P
+ `	ÿÿÿşPÿÿÿÿP)P€p   ² p   3                          ¶    ¶    ¶   ¶   I   JI   ¶   I   r v Ú£ `	• 
+ÿÿÿØPÿÿÿÿPP€€€¤  ÿ¢Ğï¤                  Q       ·   ›W   •   Ú¶    ·  ¶   %&'(Ş	  € r š"   •   Ú¶   š   •   Ú¶   •   ˜›  •   ¶       r ÜI   ßr     š/   •   Ú¶	   ¶
+   I   JI   ¶
+   I   JJ•   ˜/  •   ¶
+   ¶   Ş  €  ÜI   ßr  K   Ú¶	   ¶
+   I   JI   ¶
+   I   JJÈ   Ú¹   ÜI   ß   ¶    ¶       r ÜI   ßr  r r È   Ú¹   ÜI   ß   ¶
+   I   r È   Ú¶	   ¶
+   I   JI      ˜B   •B   ¹   ÜI   ß   ¶	   ¶
+   I   JI   ¶
+   I   Jr È   Ú•L   ¶   ÜI   ß¹   l   v Ú—   •O   ¶    v Ú•Q   £ `	šPÿÿÿóP4‘ • `P
+PÇ `P
+PI`§ ` [
+PÿÿÿåPÿÿÿíP(` 
+ÿÿÿîP(`¦ `   ÿÿÿîPM`
+ÿÿÿóPN`P9P@   4¶½R@                            ¶    ·  v Ú£ 	`ÿÿÿÿPP€€€  §¨ûF  >                 S      ·  I   ˜R   •   ¶   ˜.   •   ¶   ÜI   ß   ·  I   %   %v Ú•
+   ¶    v Ú—ã  •   ·  I   ¶	   I   šJ   •   Ú·  I
+   ¶	   I   š,   •   Ú·  I   ¶       r ÜI   ßr  •   ˜?  •   ¶   ˜.   •   ¶   ÜI   ß   ·  I   %   %v Ú•%   ¶       r ÜI   ß   v Ú·  I   ]–+   ^_™n   •,   ³   ßÅ   ³   ·  I   ¶   JÅ   Ú¶       r ÜI   ß   ¶   J%   %¶   J%   %v ÚÚ—ÿÿÿ•?   `¶       r ÜI   ß8      ;   v Ú¶       r ÜI   ßl    r ÜI!   ßl"   v Ú—=   •K   ¶   ˜.   •M   ¶   ÜI   ß#   ·  I   %$   %v Ú•S   £ `’ ``ÿÿÿäP)`PN`–  “P
+P“ ``ÿÿÿäPI`P
+P$`¦ `™ `P
+ÿÿÿİPDL`P
+
+ÿÿÿûP$`P
+ÿÿÿöPJ
+ÿÿÿúP>! ``ÿÿÿäP9$P€        *  v   €   !ş: €   B                        ÙÈ   Ú¶       r ÜI   ß   v Ú¶    ¹   r ÜI   ß   v Ú£ `PP$`ÿÿÿÿPP$P€€4   ÷%û:4                             ¶    v  Ú£ `*P€  ÒŞgâ  Â                          ¶       r ÜI   ß   r    ˜   •     •   ¶       r I   ˜-   •   ¶       r ÜI	   ß
+   v Ú—A   •   ¶       r ÜI   ß
+   r ÜI   ßr  ÜI	   ß
+   v Ú•   ¶    v  Ú£ `P
+P“ `1	F`P” `PP `PP
+PPI`P€€  n PE  Â                          ¶       r ÜI   ß   r    ˜   •     •   ¶       r I   ˜-   •   ¶       r ÜI	   ß
+   v Ú—A   •   ¶       r ÜI   ß
+   r ÜI   ßr  ÜI	   ß
+   v Ú•   ¶    v  Ú£ `P
+P“ `1	F`P” `PP `PP
+PPI`P€€   TêC   Á                          ¶       r I   ˜w   •   ¶   ™-   •   ³   ¶       r ÜI   ßr  Å   Ú•   ¶       r ÜI   ß¶       r ÜI   ßr  v Ú—4   •   ¶       r ÜI   ß¶   v Ú³   Å   Ú•   £ `P” `` P
+P.`P
+[
+PÿÿÿçP `P
+ÿÿÿüP$`‘0	P€Ô   ¯ÂPgÔ   “                         ·  ›B   •   Ú·   ›2   •   Ú·  I      š   •   Ú·  I      •	   ˜A   •
+   ¶       r ÜI   ß   r ÜI   ß8	   
+   ;   v Ú•   £ `“ Ã `P
+P
+
+ÿÿÿûPP€€€¨   >£.ú¨   a                          ¶       r I   ˜F   •   ¶       r ÜI   ß¶       r ÜI   ßr  v Ú¶    v Ú•   £ `P” `P
+[
+PÿÿÿçP$`P9P€€€3õØ  `           ¥    ‰   $        B     (  !  "  #    `  $  2  3    `:    `<    `Q  &         e  '    $  (  )  *  +  ,  -  .  /  
+  0    1      p4     @6  5  0  7  a 8  9    p;  	  p  `=  ?  >  $  (  4    @
+  @     e  #  A  B  C  D  E  á F    @/  a 8  G  	  H    I      `$  B  C  D  E  á F    @  a 8  G  H  I  @    	  `$  K  4  H    `=  $  (  4    @  @  1  ‚     p>  J    p    `$  P  N  †       Z  [  \  ]  ^  F    @H    
+  `         $  M  N    O  P  D  E  á F    @H   =  	  1  Q  C  #  A  R    @K    @  B  S    T  U      2  V  W  X  Y  J    p  `  $  N    _  Q  C  R  X  Y             2  `  a      `  (  $  T  b    N  X  Y    `  l           `$  N  ]    `l             $  _  ‚     p  `S  l           (    `t    `n  M  c  d  $      †              P  p  o  ¥    ‰   q    B     (  r    p    `$  ‡  Q  C  R    `k    `v  w  x  y  z  {        é  o  $      |  }  ~  N  †   ´    Z  €    ‚  4  	  @„  ƒ  …  †    p    pˆ  ‰    `$  ~  4  ƒ  Š  ‡  +  ‹  R  C  Q  Œ      `$  ~  4  ƒ  Š  ‡  +    R  C  Q  c      `$  ‡  +          N    ` i  ’  $  ~  N  †   4  
+  @Š  ƒ    `$  ‡  +        N      `      `      `$        `  $        p      p    p          `  c  d  !  `  c  d  f  g  h  i  j    k     `  p  p
+  p  p  p  p  p  p  p  p  p  p  p  p  p   p!  p     @    @            @    @  	  
+  $    p=  >  c  d        pe    p  ÿX„¦  -              ‰                              ‚               …                                  $                  “              “              “        @      :         t      <         ^      ”        o      •        “   ,            ƒ      –        ¿      ]         Ó   
+   S         —               ›               İ      f         ç      g         ã      —        ò      h         ü               ú      ˜           %   t              ™             ™        E     i         S     j         a  	            j              v  	   k         H©À      İ!      İ!                  ì   0  ä   0     
+             C  i  ;  i                 ‡  «    «                 Ï  ò  Ç  ò                   E  }  4  }  $               á  5  Í  5  3               3  Z  +  Z  S                ç  ù  ß  ù  [   "               1    1  \   "             x  
+  f  
+  b               3
+  $   
+  $  x               ¢
+    š
+    €                ä    Ü                  €—  €  ‰  €  •                 p  •  p  ­                “  ñ  ‚  ñ  ¸                 z  ó  z  Ì                 ]  	  ]  Û               p  À  h  À  à               ×    Ä    ï              €  É    É  ô               ˆ  Æ  €  Æ  ÷                à  ,  Ë  ,  ı               “  K  z  K                  %  û  %               f  “  M  “               §  ş  Ÿ  ş  0  "               1  	  1  5               «    •    @               µ  ¨  Ÿ  ¨  K               Ú  ¬   Æ  ¬   X               Â   J!  ®   J!  c              c!  Õ!  L!  Õ!  i             5¡İnÄıCoÄ@ïô      ejÃÒejÃÒFM èela   f    O^partitionKey=%28https%2Czorin.com%29,:https://assets.zorincdn.com/start.zorin.com/scripts/scripts.js necko:classified 1 strongly-framed 1 security-info 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 request-method GET response-head HTTP/2 200 
+content-length: 8669
+content-type: application/x-javascript
+surrogate-control: max-age=224502;hw-h2proxy
+accept-ranges: bytes
+etag: "91a1b67bf4b246a9e9d452bafe8482e3"
+strict-transport-security: max-age=15552000; includeSubDomains; preload
+x-hw: 1699117952.cdn4-pxy005-nrt02.tk2.evs,1699117952.cds043.tk2.c
+date: Sun, 26 Nov 2023 05:04:34 GMT
+last-modified: Thu, 15 Jul 2021 21:59:56 GMT
+x-rgw-object-type: Normal
+x-amz-request-id: tx00000000000002ac65a0d-006557cf46-396b6e71-ams3a
+vary: Origin, Access-Control-Request-Headers, Access-Control-Request-Method, Accept-Encoding
+x-do-cdn-uuid: 2f1c8402-8e86-4b0e-99c3-2aba92c028b7
+cache-control: max-age=604800
+cf-cache-status: HIT
+age: 180674
+server: cloudflare
+cf-ray: 82bf97696ec39e80-KTM
+X-Firefox-Spdy: h2
+ original-response-headers date: Sat, 04 Nov 2023 17:12:32 GMT
+cache-control: max-age=224502
+content-length: 8669
+content-type: application/x-javascript
+last-modified: Thu, 15 Jul 2021 21:59:56 GMT
+surrogate-control: max-age=224502;hw-h2proxy
+accept-ranges: bytes
+x-rgw-object-type: Normal
+etag: "91a1b67bf4b246a9e9d452bafe8482e3"
+x-amz-request-id: tx00000000000001fc698e5-006540adf6-3961f992-ams3a
+strict-transport-security: max-age=15552000; includeSubDomains; preload
+age: 0
+vary: Access-Control-Request-Headers,Access-Control-Request-Method,Origin
+x-hw: 1699117952.cdn4-pxy005-nrt02.tk2.evs,1699117952.cds043.tk2.c
+X-Firefox-Spdy: h2
+ ctid 2 uncompressed-len 0 net-response-time-onstart 1270 net-response-time-onstop 1271 request-Accept-Encoding gzip, deflate, br alt-data 1;8669,javascript/moz-script-bytecode-20231116134553-8l alt-data-from-child 1   h
