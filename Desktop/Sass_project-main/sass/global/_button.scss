@@ -1,0 +1,9 @@
+@use '../util' as u;
+
+.button{
+    background-color: var(--c-black);
+    color: var(--c-white);
+    border-radius: u.rem(4);
+    border: none;
+    font-weight: var(--fw-semi-bold);
+}

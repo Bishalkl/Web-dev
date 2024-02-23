@@ -1,0 +1,42 @@
+@use '../util/' as u;
+
+
+
+// flex
+@mixin header_flex($value1){
+    display: flex;
+    justify-content: $value1;
+    align-items: center;
+}
+
+
+.header{
+    background-color: var(--c-white);
+    padding-block: u.rem(45) u.rem(133);
+
+    &__wrapper{
+        @include header_flex(space-between);
+    }
+
+
+    &__logo{
+        padding-block: u.rem(6);
+    }
+
+
+    &__navbar{ 
+        gap: u.rem(60);
+        color: var(--c-light-gray);
+        font-size: var(--fs-22);
+        @include header_flex(space-between);
+    }
+
+    &__button{
+        background-color: var(--c-black);
+        color: var(--c-white);
+        font-weight: var(--fw-semi-bold);
+        font-size: --fs-20;
+        padding: u.rem(18) u.rem(50);
+    }
+
+}

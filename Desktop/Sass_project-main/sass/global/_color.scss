@@ -1,0 +1,30 @@
+@use '../util/' as u;
+
+
+:root{
+
+    // custom color
+    --c-black: hsl(0, 0%, 12%);
+    --c-light-gray: hsl(0, 0%, 33%);
+    --c-white: hsl(0, 0%, 100%);
+
+    // custom font
+    --fs-133: #{u.rem(133)};
+    --fs-70: #{u.rem(70)};
+    --fs-58: #{u.rem(58)};
+    --fs-30: #{u.rem(30)};
+    --fs-24: #{u.rem(24)};
+    --fs-22: #{u.rem(22)};
+    --fs-20: #{u.rem(20)};
+
+    // custom weight
+    --fw-medium: 500;
+    --fw-semi-bold: 600;
+    --fw-regular: 400;
+    --fw-bold: 700;
+
+
+}
+
+
+
