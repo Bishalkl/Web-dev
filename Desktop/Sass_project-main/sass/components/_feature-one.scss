@@ -1,0 +1,72 @@
+@use '../util/' as u;
+
+.feature1{
+
+    background-color: var(--c-white);
+
+    &__wrapper{
+        width: u.rem(1581);
+        height: u.rem(866);
+        position: relative;
+    }
+
+    &__h1{
+        margin-block-end: u.rem(42);
+    }
+
+    &__p{
+        padding-inline-start: u.rem(8);
+        margin-block-end: u.rem(102);
+    }
+
+    &__button{
+        font-size: var(--fs-24);
+        font-weight: var(--fw-semi-bold);
+        padding: u.rem(29) u.rem(78);
+        margin-inline-start: u.rem(8);
+        margin-block: u.rem(300) u.rem(130) ;
+    }
+
+    .feature__rate{
+        margin-block: u.rem(200) u.rem(62);
+        display: flex;
+        gap: u.rem(87);
+        padding-inline-start: u.rem(8);
+
+        p{
+            font-size: var(--fs-22);
+            font-weight: var(--fw-regular);
+            color: var(--c-light-gray);
+        }
+    }
+
+    //  mixin for postion
+    @mixin position($value1, $value2){
+        position: absolute;
+        top: #{u.rem($value1)};
+        right: #{u.rem($value2)};
+    }
+
+
+
+
+    &__img1{
+        @include position(0,0)
+    }
+
+    &__img2{
+        @include position(460, 99);
+        z-index: 1;
+    }
+
+    &__img3{
+        @include position(715, 0 );
+        z-index: 2;
+    }
+
+    &__img4{
+        @include position(425, 620);
+    }
+
+
+}

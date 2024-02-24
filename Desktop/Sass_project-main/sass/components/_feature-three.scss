@@ -1,0 +1,21 @@
+@use '../util/' as u;
+
+.feature3{
+
+    background-color: var(--c-white);
+    padding-block: u.rem(240);
+    
+    &__wrapper{
+        display: flex;
+        gap: u.rem(102);
+
+
+        .feature__wrapper__text-sec{
+            .main_p{
+                padding-block:u.rem(50) u.rem(86) ;
+            }
+            
+        }
+
+    }
+}
